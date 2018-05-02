@@ -43,7 +43,7 @@ namespace ActionsList
                     }
                 );
 
-                Triggers.ResolveTriggers(TriggerTypes.OnAbilityDirect, RegisterSlamManeuverExecutionTrigger);
+                Triggers.ResolveTriggers(TriggerTypes.OnAbilityDirect, ExecuteSelectedManeuver);
             }
         }
 
@@ -52,20 +52,10 @@ namespace ActionsList
             Selection.ThisShip.Owner.SelectManeuver(GameMode.CurrentGameMode.AssignManeuver, IsSameSpeed);
         }
 
-        private void RegisterSlamManeuverExecutionTrigger()
+        private void ExecuteSelectedManeuver()
         {
-            Triggers.RegisterTrigger(new Trigger()
-            {
-                Name = "SLAM Execution",
-                TriggerType = TriggerTypes.OnManeuver,
-                TriggerOwner = Selection.ThisShip.Owner.PlayerNo,
-                EventHandler = PerformSlamManeuver
-            });
-
-            Triggers.ResolveTriggers(
-                TriggerTypes.OnManeuver,
-                AssignWeaponsDisabledToken
-            );
+            Selection.ThisShip.AssignedManeuver.IsRealMovement = false;
+            GameMode.CurrentGameMode.LaunchMovement(AssignWeaponsDisabledToken);
         }
 
         private void AssignWeaponsDisabledToken()

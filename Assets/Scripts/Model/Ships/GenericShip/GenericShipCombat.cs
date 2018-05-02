@@ -179,6 +179,7 @@ namespace Ship
         public event EventHandlerBoostTemplates OnGetAvailableBoostTemplates;
 
         public event EventHandlerDiceroll OnImmediatelyAfterRolling;
+        public event EventHandlerDiceroll OnImmediatelyAfterReRolling;
 
         public event EventHandlerBool OnWeaponsDisabledCheck;
 
@@ -353,6 +354,13 @@ namespace Ship
             if (OnImmediatelyAfterRolling != null) OnImmediatelyAfterRolling(diceroll);
 
             Triggers.ResolveTriggers(TriggerTypes.OnImmediatelyAfterRolling, callBack);
+        }
+
+        public void CallOnImmediatelyAfterReRolling(DiceRoll diceroll, Action callBack)
+        {
+            if (OnImmediatelyAfterReRolling != null) OnImmediatelyAfterReRolling(diceroll);
+
+            Triggers.ResolveTriggers(TriggerTypes.OnImmediatelyAfterReRolling, callBack);
         }
 
         public void CallOnAtLeastOneCritWasCancelledByDefender()
@@ -611,11 +619,14 @@ namespace Ship
                 if (IsSimultaneousFireRuleActive())
                 {
                     Messages.ShowInfo("Simultaneous attack rule is active");
-                    this.OnCombatDeactivation += RegisterShipDestruction;
+                    this.OnCombatDeactivation += RegisterShipDestructionSimultaneous;
                 }
                 else
                 {
-                    Combat.Attacker.OnAttackFinishAsAttacker += RegisterShipDestruction;
+                    Combat.Attacker.OnAttackFinishAsAttacker += RegisterShipDestructionUsual;
+
+                    //For splash damage
+                    Combat.Attacker.OnCombatDeactivation += RegisterShipDestructionUsual;
                 }
                 callback();
             }
@@ -645,15 +656,28 @@ namespace Ship
             );            
         }
 
-        private void RegisterShipDestruction(GenericShip shipToIgnore)
+        private void RegisterShipDestructionSimultaneous(GenericShip shipToIgnore)
         {
-            this.OnCombatDeactivation -= RegisterShipDestruction;
-            if (Combat.Attacker != null) Combat.Attacker.OnAttackFinish -= RegisterShipDestruction;
+            this.OnCombatDeactivation -= RegisterShipDestructionSimultaneous;
 
             Triggers.RegisterTrigger(new Trigger
             {
                 Name = "Destruction of ship #" + this.ShipId,
                 TriggerType = TriggerTypes.OnCombatDeactivation,
+                TriggerOwner = this.Owner.PlayerNo,
+                EventHandler = delegate { PerformShipDestruction(Triggers.FinishTrigger); }
+            });
+        }
+
+        private void RegisterShipDestructionUsual(GenericShip shipToIgnore)
+        {
+            Combat.Attacker.OnAttackFinishAsAttacker -= RegisterShipDestructionUsual;
+            Combat.Attacker.OnCombatDeactivation -= RegisterShipDestructionUsual;
+
+            Triggers.RegisterTrigger(new Trigger
+            {
+                Name = "Destruction of ship #" + this.ShipId,
+                TriggerType = TriggerTypes.OnAttackFinish,
                 TriggerOwner = this.Owner.PlayerNo,
                 EventHandler = delegate { PerformShipDestruction(Triggers.FinishTrigger); }
             });
@@ -668,12 +692,13 @@ namespace Ship
             foreach (var pilotAbility in PilotAbilities)
             {
                 pilotAbility.DeactivateAbility();
-                foreach (var upgrade in UpgradeBar.GetUpgradesOnlyFaceup())
+            }
+
+            foreach (var upgrade in UpgradeBar.GetUpgradesOnlyFaceup())
+            {
+                foreach (var upgradeAbility in upgrade.UpgradeAbilities)
                 {
-                    foreach (var upgradeAbility in upgrade.UpgradeAbilities)
-                    {
-                        upgradeAbility.DeactivateAbility();
-                    }
+                    upgradeAbility.DeactivateAbility();
                 }
             }
 
